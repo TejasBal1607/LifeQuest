@@ -24,12 +24,12 @@ export default async function CommandCenter() {
           <h1 className="text-2xl font-bold tracking-tight">LifeQuest</h1>
           <p className="text-neutral-400">Command Center</p>
         </div>
-        <div className="text-right flex flex-col items-end gap-2">
-          <div>
+        <div className="flex flex-col items-end">
+          <div className="text-right mb-2">
             <div className="text-3xl font-bold text-emerald-500">Lv {stats?.level || 1}</div>
             <div className="text-sm text-neutral-400">{stats?.total_xp || 0} XP</div>
           </div>
-          <Link href="/history" className="flex items-center gap-1.5 text-sm text-neutral-400 hover:text-emerald-500 transition-colors">
+          <Link href="/history" className="flex items-center gap-1.5 text-sm text-neutral-400 hover:text-emerald-500 transition-colors whitespace-nowrap">
             <CalendarDays className="w-4 h-4" />
             <span>Activity Log</span>
           </Link>
@@ -37,34 +37,37 @@ export default async function CommandCenter() {
       </header>
 
       <section className="grid grid-cols-2 gap-4 mb-8">
-        <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+        <Link href="/roadmap?attribute=INT" className="block bg-neutral-900 p-4 rounded-xl border border-neutral-800 hover:border-blue-500/50 hover:bg-neutral-800/80 transition-all cursor-pointer">
           <div className="flex items-center gap-2 mb-2">
             <Brain className="text-blue-500 w-5 h-5" />
-            <span className="font-semibold">INT</span>
+            <span className="font-semibold text-neutral-200">INT</span>
           </div>
-          <div className="text-2xl">{stats?.int_xp || 0}</div>
-        </div>
-        <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+          <div className="text-2xl font-medium">{stats?.int_xp || 0}</div>
+        </Link>
+        
+        <Link href="/roadmap?attribute=STR" className="block bg-neutral-900 p-4 rounded-xl border border-neutral-800 hover:border-red-500/50 hover:bg-neutral-800/80 transition-all cursor-pointer">
           <div className="flex items-center gap-2 mb-2">
             <Swords className="text-red-500 w-5 h-5" />
-            <span className="font-semibold">STR</span>
+            <span className="font-semibold text-neutral-200">STR</span>
           </div>
-          <div className="text-2xl">{stats?.str_xp || 0}</div>
-        </div>
-        <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+          <div className="text-2xl font-medium">{stats?.str_xp || 0}</div>
+        </Link>
+
+        <Link href="/roadmap?attribute=DEX" className="block bg-neutral-900 p-4 rounded-xl border border-neutral-800 hover:border-yellow-500/50 hover:bg-neutral-800/80 transition-all cursor-pointer">
           <div className="flex items-center gap-2 mb-2">
             <Zap className="text-yellow-500 w-5 h-5" />
-            <span className="font-semibold">DEX</span>
+            <span className="font-semibold text-neutral-200">DEX</span>
           </div>
-          <div className="text-2xl">{stats?.dex_xp || 0}</div>
-        </div>
-        <div className="bg-neutral-900 p-4 rounded-xl border border-neutral-800">
+          <div className="text-2xl font-medium">{stats?.dex_xp || 0}</div>
+        </Link>
+
+        <Link href="/roadmap?attribute=CHA" className="block bg-neutral-900 p-4 rounded-xl border border-neutral-800 hover:border-purple-500/50 hover:bg-neutral-800/80 transition-all cursor-pointer">
           <div className="flex items-center gap-2 mb-2">
             <Activity className="text-purple-500 w-5 h-5" />
-            <span className="font-semibold">CHA</span>
+            <span className="font-semibold text-neutral-200">CHA</span>
           </div>
-          <div className="text-2xl">{stats?.cha_xp || 0}</div>
-        </div>
+          <div className="text-2xl font-medium">{stats?.cha_xp || 0}</div>
+        </Link>
       </section>
 
       <section>
