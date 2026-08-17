@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare } from 'lucide-react'
-import { completeSubQuest } from '@/app/actions'
+import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare, Bookmark, CalendarClock, AlertCircle } from 'lucide-react'
+import { completeSubQuest, postponeSubQuest } from '@/app/actions'
 
 const attrStyles: Record<string, string> = {
   INT: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
@@ -16,22 +16,30 @@ export default function QuestCard({ quest }: { quest: any }) {
   const [optimisticComplete, setOptimisticComplete] = useState(quest.isActuallyDone)
   const [showModal, setShowModal] = useState(false)
   const [notes, setNotes] = useState('')
-  
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, { weight: string, reps: string }>>({})
   
-  // State for Protocol Checkboxes
   const [stepChecks, setStepChecks] = useState<Record<number, boolean>>({})
+  
+  const [courseChecks, setCourseChecks] = useState<Record<number, boolean>>(
+    quest.savedCheckedSteps?.reduce((acc: any, val: number) => ({...acc, [val]: true}), {}) || {}
+  )
+
+  const [postponeDate, setPostponeDate] = useState('')
 
   const isGym = !!quest.exercises
   const isProtocol = !!quest.protocolSteps
+  const isCourse = !!quest.courseSteps
   const isFood = quest.nodeTitle.toLowerCase().includes('nutrition') || quest.nodeTitle.toLowerCase().includes('food') || quest.nodeTitle.toLowerCase().includes('macro')
   const isINT = quest.attribute === 'INT'
   const isDone = optimisticComplete || quest.isActuallyDone
 
-  // Hard requirement: Button disabled unless ALL protocol steps are checked
-  const allStepsChecked = isProtocol ? quest.protocolSteps.every((_: any, i: number) => stepChecks[i]) : true
-  const checkedCount = isProtocol ? quest.protocolSteps.filter((_: any, i: number) => stepChecks[i]).length : 0
-  const canComplete = !isPending && allStepsChecked
+  const allProtocolStepsChecked = isProtocol ? quest.protocolSteps.every((_: any, i: number) => stepChecks[i]) : true
+  const protocolCheckedCount = isProtocol ? quest.protocolSteps.filter((_: any, i: number) => stepChecks[i]).length : 0
+  
+  const allCourseStepsChecked = isCourse ? quest.courseSteps.every((_: any, i: number) => courseChecks[i]) : true
+  const courseCheckedCount = isCourse ? quest.courseSteps.filter((_: any, i: number) => courseChecks[i]).length : 0
+
+  const canComplete = !isPending && allProtocolStepsChecked
 
   const openModal = () => {
     if (!isDone && !isPending) {
@@ -46,25 +54,44 @@ export default function QuestCard({ quest }: { quest: any }) {
     }))
   }
 
+  const handlePostpone = () => {
+    if (!postponeDate || isPending) return
+    startTransition(async () => {
+      await postponeSubQuest(quest.nodeId, quest.questIndex, postponeDate)
+      setShowModal(false)
+    })
+  }
+
   const executeCompletion = () => {
     if (isDone || !canComplete) return
-    setOptimisticComplete(true)
+    
+    const isPartial = isCourse && !allCourseStepsChecked
+
+    if (!isPartial) {
+      setOptimisticComplete(true)
+    }
     setShowModal(false)
     
-    const metadata = isGym ? { exerciseLogs, log: notes } : { log: notes }
+    let metadata: any = { log: notes }
+    if (isGym) metadata.exerciseLogs = exerciseLogs
+    if (isCourse) metadata.checkedSteps = Object.keys(courseChecks).filter(k => courseChecks[Number(k)]).map(Number)
     
     startTransition(async () => {
-      // Added quest.dailyReward as the 7th parameter
-      await completeSubQuest(quest.nodeId, quest.questIndex, quest.attribute, quest.nodeReward, metadata, isGym || isProtocol, quest.dailyReward)
+      await completeSubQuest(quest.nodeId, quest.questIndex, quest.attribute, quest.nodeReward, metadata, isGym || isProtocol, quest.dailyReward, isPartial)
     })
-  } 
+  }
+
+  const isPartialState = isCourse && !allCourseStepsChecked
+  const buttonText = isProtocol && !allProtocolStepsChecked ? 'Check all steps to finish' : isPartialState ? 'Save Progress' : 'Log & Complete'
 
   return (
     <>
       <div 
         onClick={openModal}
         className={`flex flex-col p-3 md:p-4 rounded-xl border transition-all ${
-          isDone ? 'bg-neutral-900 border-neutral-800 opacity-50' : 'bg-neutral-900/50 border-neutral-800 hover:border-neutral-700 cursor-pointer'
+          isDone ? 'bg-neutral-900 border-neutral-800 opacity-50' : 
+          quest.isRollover ? 'bg-red-950/20 border-red-900/50 hover:border-red-700/50 cursor-pointer' : 
+          'bg-neutral-900/50 border-neutral-800 hover:border-neutral-700 cursor-pointer'
         }`}
       >
         <div className="flex items-start gap-3 md:gap-4">
@@ -80,24 +107,37 @@ export default function QuestCard({ quest }: { quest: any }) {
                 {quest.attribute}
               </span>
               <span className="text-[10px] md:text-xs text-neutral-500 truncate">{quest.nodeTitle}</span>
+              {quest.isRollover && !isDone && (
+                <span className="text-[9px] text-red-400 border border-red-500/30 bg-red-500/10 px-1.5 rounded flex items-center gap-1">
+                  <AlertCircle className="w-2.5 h-2.5" /> Rollover Penalty Applied
+                </span>
+              )}
             </div>
             <h3 className={`text-xs md:text-sm font-medium ${isDone ? 'text-neutral-500 line-through' : 'text-neutral-200'}`}>
               {quest.title}
             </h3>
             
-            {/* Front-of-card checklist preview */}
             {isProtocol && !isDone && (
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex-1 h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
-                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(checkedCount / quest.protocolSteps.length) * 100}%` }} />
+                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(protocolCheckedCount / quest.protocolSteps.length) * 100}%` }} />
                 </div>
-                <span className="text-[10px] text-neutral-500 font-mono font-bold">{checkedCount}/{quest.protocolSteps.length}</span>
+                <span className="text-[10px] text-neutral-500 font-mono font-bold">{protocolCheckedCount}/{quest.protocolSteps.length}</span>
+              </div>
+            )}
+
+            {isCourse && !isDone && (
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex-1 h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
+                  <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(courseCheckedCount / quest.courseSteps.length) * 100}%` }} />
+                </div>
+                <span className="text-[10px] text-neutral-500 font-mono font-bold">{courseCheckedCount}/{quest.courseSteps.length}</span>
               </div>
             )}
           </div>
           
           <div className="shrink-0 text-right">
-            <div className="text-[10px] md:text-xs font-bold text-emerald-500">+{quest.dailyReward} XP</div>
+            <div className="text-[10px] md:text-xs font-bold text-emerald-500">+{(isGym || isProtocol || isCourse) ? 'Multi' : quest.dailyReward} XP</div>
           </div>
         </div>
       </div>
@@ -143,7 +183,6 @@ export default function QuestCard({ quest }: { quest: any }) {
                 </div>
               )}
 
-              {/* Protocol Checklist UI */}
               {isProtocol && (
                 <div className="space-y-3 mb-6">
                   <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider flex items-center gap-1.5">
@@ -152,15 +191,27 @@ export default function QuestCard({ quest }: { quest: any }) {
                   {quest.protocolSteps.map((step: string, i: number) => (
                     <label key={i} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${stepChecks[i] ? 'bg-emerald-950/20 border-emerald-900/50' : 'bg-neutral-950 border-neutral-800 hover:border-neutral-700'}`}>
                       <div className="mt-0.5 relative flex items-center justify-center shrink-0">
-                        <input 
-                          type="checkbox" 
-                          checked={!!stepChecks[i]} 
-                          onChange={(e) => setStepChecks(prev => ({...prev, [i]: e.target.checked}))} 
-                          className="appearance-none w-5 h-5 border-2 border-neutral-700 rounded bg-neutral-900 checked:bg-emerald-500 checked:border-emerald-500 transition-colors peer" 
-                        />
+                        <input type="checkbox" checked={!!stepChecks[i]} onChange={(e) => setStepChecks(prev => ({...prev, [i]: e.target.checked}))} className="appearance-none w-5 h-5 border-2 border-neutral-700 rounded bg-neutral-900 checked:bg-emerald-500 checked:border-emerald-500 transition-colors peer" />
                         <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
                       </div>
                       <span className={`text-xs md:text-sm transition-colors ${stepChecks[i] ? 'text-neutral-500 line-through' : 'text-neutral-300'}`}>{step}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {isCourse && (
+                <div className="space-y-3 mb-6">
+                  <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider flex items-center gap-1.5">
+                    <CheckSquare className="w-3 h-3" /> Syllabus Topics
+                  </h4>
+                  {quest.courseSteps.map((step: string, i: number) => (
+                    <label key={i} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${courseChecks[i] ? 'bg-blue-950/20 border-blue-900/50' : 'bg-neutral-950 border-neutral-800 hover:border-neutral-700'}`}>
+                      <div className="mt-0.5 relative flex items-center justify-center shrink-0">
+                        <input type="checkbox" checked={!!courseChecks[i]} onChange={(e) => setCourseChecks(prev => ({...prev, [i]: e.target.checked}))} className="appearance-none w-5 h-5 border-2 border-neutral-700 rounded bg-neutral-900 checked:bg-blue-500 checked:border-blue-500 transition-colors peer" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" />
+                      </div>
+                      <span className={`text-xs md:text-sm transition-colors ${courseChecks[i] ? 'text-neutral-500 line-through' : 'text-neutral-300'}`}>{step}</span>
                     </label>
                   ))}
                 </div>
@@ -179,22 +230,44 @@ export default function QuestCard({ quest }: { quest: any }) {
               </div>
             </div>
 
-            <div className="p-4 md:p-5 border-t border-neutral-800 bg-neutral-950/50 flex justify-end gap-3 rounded-b-2xl">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-xs md:text-sm font-bold text-neutral-400 hover:text-white transition-colors">
-                Cancel
-              </button>
-              <button 
-                onClick={executeCompletion} 
-                disabled={!canComplete}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all shadow-lg ${
-                  canComplete 
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20' 
-                    : 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
-                }`}
-              >
-                <Send className="w-4 h-4" /> 
-                <span>{isProtocol && !allStepsChecked ? 'Check all steps to finish' : 'Log & Complete'}</span>
-              </button>
+            <div className="p-4 md:p-5 border-t border-neutral-800 bg-neutral-950/50 flex flex-col md:flex-row justify-between items-center gap-3 rounded-b-2xl">
+              
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <input 
+                  type="date" 
+                  value={postponeDate}
+                  onChange={(e) => setPostponeDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]} 
+                  className="bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs rounded-lg px-2 py-2 focus:border-neutral-600 outline-none w-full md:w-auto"
+                />
+                <button 
+                  onClick={handlePostpone}
+                  disabled={!postponeDate || isPending}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-neutral-400 bg-neutral-900 border border-neutral-800 rounded-lg hover:text-white hover:border-neutral-600 disabled:opacity-50 transition-colors"
+                >
+                  <CalendarClock className="w-3.5 h-3.5" /> Postpone
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-3 w-full md:w-auto">
+                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-xs md:text-sm font-bold text-neutral-400 hover:text-white transition-colors">
+                  Cancel
+                </button>
+                <button 
+                  onClick={executeCompletion} 
+                  disabled={!canComplete}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all shadow-lg ${
+                    canComplete 
+                      ? isPartialState 
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20' 
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'
+                      : 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
+                  }`}
+                >
+                  {isPartialState ? <Bookmark className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                  <span>{buttonText}</span>
+                </button>
+              </div>
             </div>
 
           </div>
