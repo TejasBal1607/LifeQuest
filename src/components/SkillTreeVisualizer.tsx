@@ -17,7 +17,7 @@ export default function SkillTreeVisualizer({ trees, nodes, availableXp, current
   const [newResTitle, setNewResTitle] = useState('')
   const [newResUrl, setNewResUrl] = useState('')
 
-  const [scale, setScale] = useState(1)
+  const [scale, setScale] = useState(0.7)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -45,7 +45,7 @@ export default function SkillTreeVisualizer({ trees, nodes, availableXp, current
 
   const zoomIn = () => setScale(s => Math.min(s + 0.2, 2.5))
   const zoomOut = () => setScale(s => Math.max(s - 0.2, 0.4))
-  const resetView = () => { setScale(1); setPosition({ x: 0, y: 0 }) }
+  const resetView = () => { setScale(0.7); setPosition({ x: 0, y: 0 }) }
 
   const getNodeProgress = (node: any) => {
     if (node.status === 'completed') return 100
@@ -62,9 +62,18 @@ export default function SkillTreeVisualizer({ trees, nodes, availableXp, current
     const title = node.title || ''
     let prereqTitle = ''
     
+    // INT Prereqs
     if (title.includes('Security & Hardware')) prereqTitle = 'Operating Systems'
     else if (title.includes('Data Analytics & AI/ML')) prereqTitle = 'Mathematical Foundations'
     else if (title.includes('Open Source')) prereqTitle = 'Version Control'
+    
+    // CHA Prereqs
+    else if (title.includes('Precision Articulation and Cadence')) prereqTitle = 'Vocal Resonance and Depth'
+    else if (title.includes('Impromptu Speaking and Executive Presence')) prereqTitle = 'Precision Articulation and Cadence'
+    else if (title.includes('Social Dynamics and Behavioral Profiling')) prereqTitle = 'Evolutionary Psychology'
+    else if (title.includes('Consumer Psychology and Influence')) prereqTitle = 'Social Dynamics and Behavioral Profiling'
+    else if (title.includes('Wealth Mechanics and Capital Allocation')) prereqTitle = 'Campus Marketing and Sponsorships'
+    else if (title.includes('The Art of the Pitch and High-Stakes Negotiation')) prereqTitle = 'Wealth Mechanics and Capital Allocation'
     
     if (!prereqTitle) return null
 
@@ -343,7 +352,9 @@ export default function SkillTreeVisualizer({ trees, nodes, availableXp, current
                <div className="p-8 md:p-12 flex flex-col items-center justify-center text-center bg-neutral-900 flex-1">
                  <Lock className="w-16 h-16 text-neutral-800 mb-6" />
                  <h4 className="text-xl font-bold text-neutral-300 mb-2">Node Locked</h4>
-                 <p className="text-neutral-500 max-w-sm mb-6">This node requires <span className="font-bold text-blue-400">{selectedNode.xp_cost || 0} INT XP</span> to unlock.</p>
+                 
+                 {/* Replaced hardcoded "INT XP" with dynamic attribute text! */}
+                 <p className="text-neutral-500 max-w-sm mb-6">This node requires <span className="font-bold text-blue-400">{selectedNode.xp_cost || 0} {currentAttribute} XP</span> to unlock.</p>
                  
                  {currentPrereqError && (
                    <div className="bg-red-950/30 border border-red-900/50 text-red-400 p-3 rounded-lg mb-6 flex items-center gap-2 text-sm w-full max-w-md">

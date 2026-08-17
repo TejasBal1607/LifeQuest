@@ -134,3 +134,46 @@ export async function unlockNode(nodeId: string, cost: number, attribute: string
   revalidatePath('/')
   return { success: true }
 }
+
+export async function completeSubQuest(nodeId: string, questIndex: number, attribute: string, nodeReward: number, metadata?: any, completeAll: boolean = false, dailyReward: number = 50) {
+  const supabase = await createClient()
+  
+  const [ { data: node }, { data: stats } ] = await Promise.all([
+    supabase.from('tree_nodes').select('*').eq('id', nodeId).single(),
+    supabase.from('user_stats').select('*').single()
+  ])
+
+  if (!node || !stats) return { error: 'Not found' }
+
+  let schema = typeof node.dynamic_schema === 'string' ? JSON.parse(node.dynamic_schema) : node.dynamic_schema
+  const timestamp = new Date().toISOString()
+  
+  if (completeAll) {
+    schema.sub_quests.forEach((q: any) => {
+      q.completed = true
+      q.metadata = { ...(metadata || {}), loggedAt: timestamp }
+    })
+  } else {
+    schema.sub_quests[questIndex].completed = true
+    schema.sub_quests[questIndex].metadata = { ...(metadata || {}), loggedAt: timestamp }
+  }
+
+  const allDone = schema.sub_quests.every((q: any) => q.completed)
+  
+  // Use the new dynamic dailyReward based on the task type
+  const xpGained = dailyReward + (allDone ? (node.xp_reward || 0) : 0)
+  
+  const attrKey = `${attribute.toLowerCase()}_xp`
+  const newXp = (stats[attrKey] || 0) + xpGained
+
+  await Promise.all([
+    supabase.from('tree_nodes').update({ 
+      dynamic_schema: schema,
+      status: allDone ? 'completed' : 'in_progress'
+    }).eq('id', nodeId),
+    supabase.from('user_stats').update({ [attrKey]: newXp }).eq('id', stats.id)
+  ])
+
+  revalidatePath('/')
+  revalidatePath('/roadmap')
+}
