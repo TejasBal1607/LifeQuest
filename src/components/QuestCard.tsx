@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare, Bookmark, CalendarClock, AlertCircle, RefreshCw } from 'lucide-react'
 import { completeSubQuest, postponeSubQuest } from '@/app/actions'
+import { analyzeFoodLog, analyzeStyleAndGrooming } from '@/app/ai-actions'
 import { QuestData } from '@/app/page'
 
 const attrStyles: Record<string, string> = {
@@ -19,6 +20,7 @@ interface QuestCardProps {
 export default function QuestCard(props: QuestCardProps) {
   const { quest } = props;
   const [isPending, startTransition] = useTransition()
+  const [isAIProcessing, setIsAIProcessing] = useState(false)
   const [optimisticComplete, setOptimisticComplete] = useState(quest.isActuallyDone)
   const [showModal, setShowModal] = useState(false)
   const [notes, setNotes] = useState('')
@@ -36,7 +38,8 @@ export default function QuestCard(props: QuestCardProps) {
   const isProtocol = !!quest.protocolSteps
   const isCourse = !!quest.courseSteps
   const isFood = quest.nodeTitle.toLowerCase().includes('nutrition') || quest.nodeTitle.toLowerCase().includes('food') || quest.nodeTitle.toLowerCase().includes('macro')
-  const isINT = quest.attribute === 'INT' // <-- FIXED: Restored isINT declaration
+  const isMorningProtocol = isProtocol && quest.title.toLowerCase().includes('protocol 1')
+  const isINT = quest.attribute === 'INT'
   const isDone = optimisticComplete || quest.isActuallyDone
 
   const allProtocolStepsChecked = isProtocol && quest.protocolSteps ? quest.protocolSteps.every((_: any, i: number) => stepChecks[i]) : true
@@ -45,13 +48,13 @@ export default function QuestCard(props: QuestCardProps) {
   const allCourseStepsChecked = isCourse && quest.courseSteps ? quest.courseSteps.every((_: any, i: number) => courseChecks[i]) : true
   const courseCheckedCount = isCourse && quest.courseSteps ? quest.courseSteps.filter((_: any, i: number) => courseChecks[i]).length : 0
 
-  const canComplete = !isPending && allProtocolStepsChecked
+  const canComplete = !isPending && !isAIProcessing && allProtocolStepsChecked
 
   const dateInIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
   const todayStrIST = `${dateInIST.getFullYear()}-${String(dateInIST.getMonth() + 1).padStart(2, '0')}-${String(dateInIST.getDate()).padStart(2, '0')}`
 
   const openModal = () => {
-    if (!isDone && !isPending) {
+    if (!isDone && !isPending && !isAIProcessing) {
       setShowModal(true)
     }
   }
@@ -64,7 +67,7 @@ export default function QuestCard(props: QuestCardProps) {
   }
 
   const handlePostpone = () => {
-    if (!postponeDate || isPending) return
+    if (!postponeDate || isPending || isAIProcessing) return
     startTransition(async () => {
       await postponeSubQuest(quest.nodeId, quest.questIndex, postponeDate)
       setShowModal(false)
@@ -72,7 +75,7 @@ export default function QuestCard(props: QuestCardProps) {
   }
 
   const handleSwap = () => {
-    if (isPending) return
+    if (isPending || isAIProcessing) return
     const tomorrowIST = new Date(dateInIST)
     tomorrowIST.setDate(tomorrowIST.getDate() + 1)
     const tomorrowStr = `${tomorrowIST.getFullYear()}-${String(tomorrowIST.getMonth() + 1).padStart(2, '0')}-${String(tomorrowIST.getDate()).padStart(2, '0')}`
@@ -83,13 +86,33 @@ export default function QuestCard(props: QuestCardProps) {
     })
   }
 
-  const executeCompletion = () => {
+  const executeCompletion = async () => {
     if (isDone || !canComplete) return
+    
     const isPartial = isCourse && !allCourseStepsChecked
+    let finalLog = notes
+
+    // AUTOMATED AI PROCESSING INTERCEPTOR
+    if ((isFood || isMorningProtocol) && notes.trim()) {
+      setIsAIProcessing(true)
+      try {
+        if (isFood) {
+          const analysis = await analyzeFoodLog(notes)
+          finalLog = `USER ENTRY:\n${notes}\n\n=== AI MACRO BREAKDOWN ===\n${analysis}`
+        } else if (isMorningProtocol) {
+          const analysis = await analyzeStyleAndGrooming(notes)
+          finalLog = `USER OUTFIT:\n${notes}\n\n=== AI STYLE ANALYSIS ===\n${analysis}`
+        }
+      } catch (error) {
+        console.error("AI Analysis failed", error)
+      }
+      setIsAIProcessing(false)
+    }
+
     if (!isPartial) setOptimisticComplete(true)
     setShowModal(false)
     
-    let metadata: any = { log: notes }
+    let metadata: any = { log: finalLog }
     if (isGym) metadata.exerciseLogs = exerciseLogs
     if (isCourse) metadata.checkedSteps = Object.keys(courseChecks).filter(k => courseChecks[Number(k)]).map(Number)
     
@@ -236,12 +259,18 @@ export default function QuestCard(props: QuestCardProps) {
 
               <div>
                 <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider">
-                  {isGym ? "Form Analysis & Fatigue Notes" : isFood ? "Macro & Nutrition Breakdown" : isINT ? "Execution Notes / Quiz Answers" : "Log Details"}
+                  {isFood ? "List Ingredients for AI Macro Breakdown" : isMorningProtocol ? "Describe Outfit for AI Style Evaluation" : "Execution Notes"}
                 </h4>
                 <textarea 
                   value={notes} 
                   onChange={(e) => setNotes(e.target.value)} 
-                  placeholder={isGym ? "Log technique constraints or physical fatigue." : isFood ? "e.g., Paneer wrap, ~30g protein. Moderate fats." : isINT ? "Paste your answers, code snippets, or learning summaries here." : "Add completion details..."} 
+                  placeholder={
+                    isFood ? "e.g., Paneer wrap, 1 scoop whey. AI will calculate macros." :
+                    isMorningProtocol ? "e.g., Charcoal trousers, white Oxford. AI will evaluate style." :
+                    isGym ? "Log technique constraints or physical fatigue." :
+                    isINT ? "Paste your answers, code snippets, or learning summaries here." : 
+                    "Add completion details..."
+                  } 
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-3 text-xs md:text-sm text-white focus:border-emerald-500 outline-none resize-y min-h-[100px] transition-colors" 
                 />
               </div>
@@ -259,14 +288,14 @@ export default function QuestCard(props: QuestCardProps) {
                 />
                 <button 
                   onClick={handlePostpone}
-                  disabled={!postponeDate || isPending}
+                  disabled={!postponeDate || isPending || isAIProcessing}
                   className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-neutral-400 bg-neutral-900 border border-neutral-800 rounded-lg hover:text-white hover:border-neutral-600 disabled:opacity-50 transition-colors"
                 >
                   <CalendarClock className="w-3.5 h-3.5" /> Postpone
                 </button>
                 <button 
                   onClick={handleSwap}
-                  disabled={isPending}
+                  disabled={isPending || isAIProcessing}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-400 bg-blue-900/10 border border-blue-900/30 rounded-lg hover:text-blue-300 hover:bg-blue-900/30 hover:border-blue-700/50 transition-colors"
                   title="Swap for another quest in this branch"
                 >
@@ -275,22 +304,22 @@ export default function QuestCard(props: QuestCardProps) {
               </div>
 
               <div className="flex justify-end gap-3 w-full md:w-auto mt-3 md:mt-0">
-                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-xs md:text-sm font-bold text-neutral-400 hover:text-white transition-colors">
+                <button onClick={() => setShowModal(false)} disabled={isAIProcessing} className="px-4 py-2 text-xs md:text-sm font-bold text-neutral-400 hover:text-white transition-colors disabled:opacity-50">
                   Cancel
                 </button>
                 <button 
                   onClick={executeCompletion} 
-                  disabled={!canComplete}
+                  disabled={!canComplete || isAIProcessing}
                   className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all shadow-lg ${
-                    canComplete 
-                      ? isPartialState 
+                    !canComplete || isAIProcessing
+                      ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
+                      : isPartialState 
                           ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-900/20' 
                           : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20'
-                      : 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
                   }`}
                 >
-                  {isPartialState ? <Bookmark className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-                  <span>{buttonText}</span>
+                  {isAIProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : isPartialState ? <Bookmark className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+                  <span>{isAIProcessing ? 'Analyzing Data...' : buttonText}</span>
                 </button>
               </div>
             </div>

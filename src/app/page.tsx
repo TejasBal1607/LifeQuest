@@ -1,5 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
-import { Activity, Brain, Swords, Zap, CalendarDays, AlertTriangle } from 'lucide-react'
+import { Activity, Brain, Swords, Zap, CalendarDays, AlertTriangle, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import QuestCard from '@/components/QuestCard'
 import LedgerManager from '@/components/LedgerManager'
@@ -135,9 +135,14 @@ export default async function CommandCenter() {
             <div className="text-xs text-neutral-500 font-mono uppercase tracking-widest hidden md:block">Total XP: {totalXp}</div>
             <div className="text-2xl font-bold text-emerald-500">Lv {currentLevel}</div>
           </div>
-          <Link href="/history" className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-emerald-500 transition-colors bg-neutral-900 px-2 py-1 rounded-md border border-neutral-800">
-            <CalendarDays className="w-3 h-3" /> <span>Activity Log</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/analytics" className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-emerald-500 transition-colors bg-neutral-900 px-2 py-1 rounded-md border border-neutral-800">
+              <Sparkles className="w-3 h-3 text-emerald-500" /> <span>AI Hub</span>
+            </Link>
+            <Link href="/history" className="flex items-center gap-1.5 text-[10px] text-neutral-400 hover:text-emerald-500 transition-colors bg-neutral-900 px-2 py-1 rounded-md border border-neutral-800">
+              <CalendarDays className="w-3 h-3" /> <span>Activity Log</span>
+            </Link>
+          </div>
         </div>
       </header>
 
