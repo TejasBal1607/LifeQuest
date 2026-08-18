@@ -1,5 +1,5 @@
 'use client'
-
+export const maxDuration = 60;
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Sparkles, BarChart3, Loader2 } from 'lucide-react'
