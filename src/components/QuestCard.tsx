@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare, Bookmark, CalendarClock, AlertCircle, RefreshCw } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare, Bookmark, CalendarClock, AlertCircle, RefreshCw, Camera } from 'lucide-react'
 import { completeSubQuest, postponeSubQuest } from '@/app/actions'
 import { analyzeFoodLog, analyzeStyleAndGrooming } from '@/app/ai-actions'
 import { QuestData } from '@/app/page'
@@ -23,11 +23,12 @@ export default function QuestCard(props: QuestCardProps) {
   const [isAIProcessing, setIsAIProcessing] = useState(false)
   const [optimisticComplete, setOptimisticComplete] = useState(quest.isActuallyDone)
   const [showModal, setShowModal] = useState(false)
+  
   const [notes, setNotes] = useState('')
+  const [imageFile, setImageFile] = useState<string | null>(null)
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, { weight: string, reps: string }>>({})
   
   const [stepChecks, setStepChecks] = useState<Record<number, boolean>>({})
-  
   const [courseChecks, setCourseChecks] = useState<Record<number, boolean>>(
     quest.savedCheckedSteps?.reduce((acc: any, val: number) => ({...acc, [val]: true}), {}) || {}
   )
@@ -38,7 +39,8 @@ export default function QuestCard(props: QuestCardProps) {
   const isProtocol = !!quest.protocolSteps
   const isCourse = !!quest.courseSteps
   const isFood = quest.nodeTitle.toLowerCase().includes('nutrition') || quest.nodeTitle.toLowerCase().includes('food') || quest.nodeTitle.toLowerCase().includes('macro')
-  const isMorningProtocol = isProtocol && quest.title.toLowerCase().includes('protocol 1')
+  
+  const isMorningProtocol = isProtocol && (quest.nodeTitle.toLowerCase().includes('protocol 1') || quest.title.toLowerCase().includes('protocol 1'))
   const isINT = quest.attribute === 'INT'
   const isDone = optimisticComplete || quest.isActuallyDone
 
@@ -86,22 +88,30 @@ export default function QuestCard(props: QuestCardProps) {
     })
   }
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => setImageFile(reader.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
   const executeCompletion = async () => {
     if (isDone || !canComplete) return
     
     const isPartial = isCourse && !allCourseStepsChecked
     let finalLog = notes
 
-    // AUTOMATED AI PROCESSING INTERCEPTOR
-    if ((isFood || isMorningProtocol) && notes.trim()) {
+    if ((isFood && notes.trim()) || (isMorningProtocol && (notes.trim() || imageFile))) {
       setIsAIProcessing(true)
       try {
         if (isFood) {
           const analysis = await analyzeFoodLog(notes)
           finalLog = `USER ENTRY:\n${notes}\n\n=== AI MACRO BREAKDOWN ===\n${analysis}`
         } else if (isMorningProtocol) {
-          const analysis = await analyzeStyleAndGrooming(notes)
-          finalLog = `USER OUTFIT:\n${notes}\n\n=== AI STYLE ANALYSIS ===\n${analysis}`
+          const analysis = await analyzeStyleAndGrooming(notes, imageFile || undefined)
+          finalLog = `USER OUTFIT LOG:\n${notes || 'Image Uploaded'}\n\n=== AI STYLE ANALYSIS ===\n${analysis}`
         }
       } catch (error) {
         console.error("AI Analysis failed", error)
@@ -259,14 +269,27 @@ export default function QuestCard(props: QuestCardProps) {
 
               <div>
                 <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider">
-                  {isFood ? "List Ingredients for AI Macro Breakdown" : isMorningProtocol ? "Describe Outfit for AI Style Evaluation" : "Execution Notes"}
+                  {isFood ? "List Ingredients for AI Macro Breakdown" : isMorningProtocol ? "Upload Outfit & Describe Context" : "Execution Notes"}
                 </h4>
+                
+                {isMorningProtocol && (
+                  <div className="mb-3">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleImageUpload} 
+                      className="w-full text-xs text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-emerald-500/10 file:text-emerald-500 hover:file:bg-emerald-500/20 transition-colors cursor-pointer" 
+                    />
+                    {imageFile && <div className="mt-1.5 text-[10px] text-emerald-500 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Image attached and ready for AI check.</div>}
+                  </div>
+                )}
+
                 <textarea 
                   value={notes} 
                   onChange={(e) => setNotes(e.target.value)} 
                   placeholder={
                     isFood ? "e.g., Paneer wrap, 1 scoop whey. AI will calculate macros." :
-                    isMorningProtocol ? "e.g., Charcoal trousers, white Oxford. AI will evaluate style." :
+                    isMorningProtocol ? "Where are you going today? (e.g., Campus classes, Gym, Dinner)." :
                     isGym ? "Log technique constraints or physical fatigue." :
                     isINT ? "Paste your answers, code snippets, or learning summaries here." : 
                     "Add completion details..."

@@ -14,14 +14,12 @@ export default function HistoryCalendar({ historyData }: { historyData: any[] })
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   
-  // Default selection to today's date
   const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const [selectedDate, setSelectedDate] = useState<string | null>(todayString)
 
   const year = currentMonth.getFullYear()
   const month = currentMonth.getMonth()
 
-  // Dynamic Calendar Math
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const startDay = new Date(year, month, 1).getDay()
   const monthName = currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })
@@ -100,28 +98,28 @@ export default function HistoryCalendar({ historyData }: { historyData: any[] })
                         <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${attrStyles[q.attribute] || attrStyles.INT}`}>
                           {q.attribute}
                         </span>
-                        <span className="text-xs text-neutral-400 font-semibold">{q.isGym ? q.title : q.nodeTitle}</span>
+                        <span className="text-xs text-neutral-400 font-semibold">{q.title}</span>
                     </div>
                     <span className="text-xs font-bold text-emerald-500">+{q.xp_reward}</span>
                   </div>
                   
-                  <p className="text-sm text-neutral-200 mb-2">{q.isGym ? 'Execution Log' : q.title}</p>
-
-                  {q.isGym && q.exercises && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3 mt-3">
-                      {q.exercises.map((ex: any, i: number) => (
-                        <div key={i} className="bg-neutral-900 p-2 rounded-lg border border-neutral-800 flex justify-between items-center text-xs">
-                          <span className="text-neutral-400 truncate pr-2">{ex.name}</span>
-                          <span className="font-mono text-emerald-400 shrink-0">
-                            {ex.data ? `${ex.data.weight || '-'} | ${ex.data.reps || '-'}` : 'Done'}
-                          </span>
+                  {q.items && q.items.length > 0 && (
+                    <div className="flex flex-col gap-1.5 mt-4 mb-2">
+                      {q.items.map((item: any, i: number) => (
+                        <div key={i} className="bg-neutral-900 p-2.5 rounded-lg border border-neutral-800 flex justify-between items-center text-xs">
+                          <span className="text-neutral-300 leading-tight pr-2">{item.name}</span>
+                          {q.isGym && item.data && (
+                            <span className="font-mono text-emerald-400 shrink-0 ml-2 whitespace-nowrap">
+                              {item.data.weight} | {item.data.reps}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
 
                   {q.logText && (
-                    <div className="flex items-start gap-2 bg-neutral-900/50 p-3 rounded-lg border border-neutral-800 mt-2">
+                    <div className="flex items-start gap-2 bg-neutral-900/50 p-3 rounded-lg border border-neutral-800 mt-3">
                       <FileText className="w-3 h-3 mt-0.5 text-neutral-500 shrink-0" />
                       <p className="text-xs text-neutral-400 italic whitespace-pre-wrap leading-relaxed">{q.logText}</p>
                     </div>

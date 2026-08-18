@@ -6,7 +6,6 @@ import HistoryCalendar from '@/components/HistoryCalendar'
 export default async function HistoryPage() {
   const supabase = await createClient()
 
-  // Fetch all nodes that have JSONB schema data
   const { data: nodes } = await supabase.from('tree_nodes').select('*, skill_trees(attribute)').not('dynamic_schema', 'is', 'null')
 
   const historyData: any[] = []
@@ -19,7 +18,6 @@ export default async function HistoryPage() {
     const isProtocol = node.title.toLowerCase().includes('protocol 1') || node.title.toLowerCase().includes('protocol 2')
     const attr = node.skill_trees?.attribute || 'INT'
 
-    // Calculate XP accurately for history
     let dailyReward = 50
     if (attr === 'STR') {
       if (isProtocol || node.title.toLowerCase().includes('maintenance')) dailyReward = 20
@@ -33,50 +31,32 @@ export default async function HistoryPage() {
       dailyReward = 100
     }
 
-    if (isGym) {
-      // Group gym exercises by date
-      const completedExercises = subQuests.filter((q: any) => q.completed && q.metadata?.loggedAt)
-      const gymByDate: Record<string, any[]> = {}
+    // Group ALL completed subquests by date
+    const completedQuests = subQuests.filter((q: any) => q.completed && q.metadata?.loggedAt)
+    const questsByDate: Record<string, any[]> = {}
+    
+    completedQuests.forEach((q:any) => {
+      const dateObj = new Date(q.metadata.loggedAt)
+      const dateIST = new Date(dateObj.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+      const dateStr = `${dateIST.getFullYear()}-${String(dateIST.getMonth() + 1).padStart(2, '0')}-${String(dateIST.getDate()).padStart(2, '0')}`
       
-      completedExercises.forEach((q:any) => {
-        const dateObj = new Date(q.metadata.loggedAt)
-        const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
-        if (!gymByDate[dateStr]) gymByDate[dateStr] = []
-        gymByDate[dateStr].push(q)
-      })
+      if (!questsByDate[dateStr]) questsByDate[dateStr] = []
+      questsByDate[dateStr].push(q)
+    })
 
-      Object.entries(gymByDate).forEach(([dateStr, questsForDay]) => {
-        historyData.push({
-          id: `${node.id}-${dateStr}`,
-          title: node.title,
-          attribute: attr,
-          xp_reward: dailyReward,
-          logged_date: dateStr,
-          status: 'completed',
-          isGym: true,
-          exercises: questsForDay.map(q => ({ name: q.title, data: q.metadata?.exerciseLogs?.[q.title] || null })),
-          logText: questsForDay[0].metadata?.log || ''
-        })
+    Object.entries(questsByDate).forEach(([dateStr, questsForDay]) => {
+      historyData.push({
+        id: `${node.id}-${dateStr}`,
+        title: node.title,
+        attribute: attr,
+        xp_reward: dailyReward,
+        logged_date: dateStr,
+        status: 'completed',
+        isGym: isGym,
+        items: questsForDay.map(q => ({ name: q.title, data: q.metadata?.exerciseLogs?.[q.title] || null })),
+        logText: questsForDay.find(q => q.metadata?.log)?.metadata?.log || ''
       })
-    } else {
-      subQuests.forEach((q: any, i: number) => {
-        if (q.completed && q.metadata?.loggedAt) {
-          const dateObj = new Date(q.metadata.loggedAt)
-          const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`
-          historyData.push({
-            id: `${node.id}-${i}`,
-            title: q.title,
-            nodeTitle: node.title,
-            attribute: attr,
-            xp_reward: dailyReward,
-            logged_date: dateStr,
-            status: 'completed',
-            isGym: false,
-            logText: q.metadata?.log || ''
-          })
-        }
-      })
-    }
+    })
   })
 
   return (
@@ -90,7 +70,6 @@ export default async function HistoryPage() {
           <p className="text-xs text-neutral-400">Your permanent historical ledger.</p>
         </div>
       </header>
-
       <main>
         <HistoryCalendar historyData={historyData} />
       </main>

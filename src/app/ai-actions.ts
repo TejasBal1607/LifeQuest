@@ -38,17 +38,40 @@ Keep the output structured with clean markdown headers and bullet points.`
   return await callAI(systemPrompt, `Here is my food intake log for today:\n${foodNotes}`)
 }
 
-export async function analyzeStyleAndGrooming(description: string) {
-  const systemPrompt = `You are a menswear and personal aesthetic consultant. 
-Analyze the user's planned or worn outfit and grooming routine.
-Evaluate:
-1. Color Harmony and Contrast.
-2. Silhouette, Layering, and Proportions.
-3. Occasion Appropriateness.
-4. Grooming / Maintenance Recommendations.
-Be concise, direct, and practical.`
+export async function analyzeStyleAndGrooming(description: string, imageBase64?: string) {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured')
 
-  return await callAI(systemPrompt, `Here is my outfit and grooming description:\n${description}`)
+  // Construct the text payload
+  const parts: any[] = [{ text: `Here is my outfit and grooming description/notes:\n${description || 'No additional text provided.'}` }]
+
+  // If an image was uploaded, attach it as inlineData
+  if (imageBase64) {
+    // Strip the "data:image/jpeg;base64," prefix that FileReader adds
+    const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+    parts.push({
+      inlineData: {
+        mimeType: "image/jpeg", 
+        data: base64Data
+      }
+    })
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: `You are a menswear, grooming, and personal aesthetic consultant. Analyze the user's uploaded outfit photo and/or description. Evaluate Fit, Silhouette, Color Harmony, and Occasion Appropriateness. Be concise and practical.` }] },
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.4 }
+      })
+    }
+  )
+
+  const data = await response.json()
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to generate analysis.'
 }
 
 export async function generateWeeklyExecutiveDebrief() {
