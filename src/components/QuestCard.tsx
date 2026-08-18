@@ -90,11 +90,39 @@ export default function QuestCard(props: QuestCardProps) {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => setImageFile(reader.result as string)
-      reader.readAsDataURL(file)
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const img = new Image()
+      img.onload = () => {
+        // Create a canvas to resize the image
+        const canvas = document.createElement('canvas')
+        let width = img.width
+        let height = img.height
+        const MAX_DIMENSION = 800 // Shrink to max 800px
+
+        // Calculate new dimensions while maintaining aspect ratio
+        if (width > height && width > MAX_DIMENSION) {
+          height *= MAX_DIMENSION / width
+          width = MAX_DIMENSION
+        } else if (height > MAX_DIMENSION) {
+          width *= MAX_DIMENSION / height
+          height = MAX_DIMENSION
+        }
+
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx?.drawImage(img, 0, 0, width, height)
+        
+        // Compress to JPEG at 70% quality (Results in ~50kb to 100kb file)
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7)
+        setImageFile(compressedBase64)
+      }
+      img.src = event.target?.result as string
     }
+    reader.readAsDataURL(file)
   }
 
   const executeCompletion = async () => {
