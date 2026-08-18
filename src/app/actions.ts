@@ -174,8 +174,8 @@ export async function completeSubQuest(nodeId: string, questIndex: number, attri
     schema.sub_quests[questIndex].metadata = { ...(metadata || {}), loggedAt: timestamp }
     
     const allDone = schema.sub_quests.every((q: any) => q.completed)
-    // Only give the node reward if it's a final completion and not a recurring node
-    xpGained = dailyReward + (allDone && !node.repeatable ? (node.xp_reward || 0) : 0)
+    
+    xpGained = dailyReward + (allDone ? nodeReward : 0)
   }
 
   const allDone = schema.sub_quests.every((q: any) => q.completed)

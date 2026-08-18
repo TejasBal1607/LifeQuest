@@ -159,7 +159,7 @@ export default function QuestCard(props: QuestCardProps) {
         quest.nodeId, 
         quest.questIndex, 
         quest.attribute, 
-        (isGym || isProtocol) ? 0 : quest.nodeReward, // <-- FIX: Prevents 300 XP spam on daily recurring tasks
+        (isGym || isProtocol || isFood) ? 0 : quest.nodeReward, 
         metadata, 
         isGym || isProtocol, 
         quest.dailyReward, 
