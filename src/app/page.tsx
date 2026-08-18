@@ -20,7 +20,6 @@ export default async function CommandCenter() {
     supabase.from('tree_nodes').select('*, skill_trees(attribute)').in('status', ['in_progress', 'completed'])
   ])
   
-  // STRICT TIMEZONE ENFORCEMENT (Asia/Kolkata)
   const dateInIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
   const todayStr = `${dateInIST.getFullYear()}-${String(dateInIST.getMonth() + 1).padStart(2, '0')}-${String(dateInIST.getDate()).padStart(2, '0')}`
   const dayOfWeek = dateInIST.getDay()
@@ -35,7 +34,6 @@ export default async function CommandCenter() {
     const isGym = node.title.toLowerCase().includes('push') || node.title.toLowerCase().includes('pull') || node.title.toLowerCase().includes('legs') || node.title.toLowerCase().includes('arms') || node.title.toLowerCase().includes('body') || node.title.toLowerCase().includes('recovery')
     const isProtocol = node.title.toLowerCase().includes('protocol 1') || node.title.toLowerCase().includes('protocol 2')
     
-    // Check completion using IST converted dates
     const todayCompletedIndex = subQuests.findIndex((q: any) => {
       if (!q.completed || !q.metadata?.loggedAt) return false;
       const loggedObj = new Date(q.metadata.loggedAt);
@@ -62,6 +60,8 @@ export default async function CommandCenter() {
 
     const activeIndex = doneToday ? todayCompletedIndex : subQuests.findIndex((q: any) => !q.completed)
     if (activeIndex === -1) return null
+
+    // Removed the early filter here so nodes can reserve their slots!
 
     const metadata = subQuests[activeIndex].metadata || {}
     let displayTitle = subQuests[activeIndex].title
@@ -95,23 +95,25 @@ export default async function CommandCenter() {
 
   const missedQuests = allQuests.filter((q: QuestData) => !q.isActuallyDone && q.scheduledDate && q.scheduledDate < todayStr && q.postponedTo !== todayStr)
   const forceQuests = allQuests.filter((q: QuestData) => q.postponedTo === todayStr || q.isRollover)
-  const validNormalQuests = allQuests.filter((q: QuestData) => !q.postponedTo || q.postponedTo <= todayStr)
 
   const hasTitle = (q: QuestData, titles: string[]) => titles.some(t => (q.nodeTitle + ' ' + q.title).toLowerCase().includes(t.toLowerCase()))
 
+  // Now we use `allQuests` to claim slots so a postponed quest blocks other quests from replacing it
   const scheduledQuests: QuestData[] = []
-  scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => q.attribute === 'INT' && hasTitle(q, ['foundation', 'object-oriented', 'data structure', 'operating system'])).slice(0, 2))
-  scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => hasTitle(q, ['spanish'])).slice(0, 1))
-  scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => q.attribute === 'STR' && hasTitle(q, ['protocol', 'maintenance', 'nutrition', 'food', 'macro'])))
-  if (dayOfWeek !== 0) scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => q.attribute === 'STR' && !!q.exercises && q.title.toLowerCase().includes(currentDayName.toLowerCase())).slice(0, 1))
-  scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => q.attribute === 'INT' && !hasTitle(q, ['foundation', 'object-oriented', 'data structure', 'operating system'])).slice(0, 1))
-  if (dayOfWeek % 2 === 0 && dayOfWeek !== 0) scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => q.attribute === 'CHA').slice(0, 1))
-  if (dayOfWeek % 2 !== 0) scheduledQuests.push(...validNormalQuests.filter((q: QuestData) => q.attribute === 'DEX' && hasTitle(q, ['fretboard', 'campfire', 'electric'])).slice(0, 1))
+  scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'INT' && hasTitle(q, ['foundation', 'object-oriented', 'data structure', 'operating system'])).slice(0, 2))
+  scheduledQuests.push(...allQuests.filter((q: QuestData) => hasTitle(q, ['spanish'])).slice(0, 1))
+  scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'STR' && hasTitle(q, ['protocol', 'maintenance', 'nutrition', 'food', 'macro'])))
+  if (dayOfWeek !== 0) scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'STR' && !!q.exercises && q.title.toLowerCase().includes(currentDayName.toLowerCase())).slice(0, 1))
+  scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'INT' && !hasTitle(q, ['foundation', 'object-oriented', 'data structure', 'operating system'])).slice(0, 1))
+  if (dayOfWeek % 2 === 0 && dayOfWeek !== 0) scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'CHA').slice(0, 1))
+  if (dayOfWeek % 2 !== 0) scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'DEX' && hasTitle(q, ['fretboard', 'campfire', 'electric'])).slice(0, 1))
   
   const deduplicatedScheduled = scheduledQuests.filter((sq: QuestData) => !forceQuests.some((fq: QuestData) => fq.nodeId === sq.nodeId))
   const remainingSlots = Math.max(0, 10 - forceQuests.length)
   
+  // FIX: Here is where we finally hide the quests that were postponed to the future
   const finalQuests = [...forceQuests, ...deduplicatedScheduled.slice(0, remainingSlots)]
+    .filter((q: QuestData) => !q.scheduledDate || q.scheduledDate <= todayStr) 
     .sort((a, b) => Number(a.isActuallyDone) - Number(b.isActuallyDone))
 
   const activeCount = finalQuests.filter((q: QuestData) => !q.isActuallyDone).length
