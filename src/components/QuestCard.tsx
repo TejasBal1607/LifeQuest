@@ -38,7 +38,8 @@ export default function QuestCard(props: QuestCardProps) {
   const isGym = !!quest.exercises
   const isProtocol = !!quest.protocolSteps
   const isCourse = !!quest.courseSteps
-  const isFood = quest.nodeTitle.toLowerCase().includes('nutrition') || quest.nodeTitle.toLowerCase().includes('food') || quest.nodeTitle.toLowerCase().includes('macro')
+const searchString = (quest.nodeTitle + ' ' + quest.title).toLowerCase()
+const isFood = searchString.includes('nutrition') || searchString.includes('food') || searchString.includes('macro')
   
   const isMorningProtocol = isProtocol && (quest.nodeTitle.toLowerCase().includes('protocol 1') || quest.title.toLowerCase().includes('protocol 1'))
   const isINT = quest.attribute === 'INT'
