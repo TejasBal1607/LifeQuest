@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare, Bookmark, CalendarClock, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, Send, X, FileText, CheckSquare, Bookmark, CalendarClock, AlertCircle, RefreshCw } from 'lucide-react'
 import { completeSubQuest, postponeSubQuest } from '@/app/actions'
+import { QuestData } from '@/app/page'
 
 const attrStyles: Record<string, string> = {
   INT: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
@@ -11,7 +12,12 @@ const attrStyles: Record<string, string> = {
   CHA: 'text-purple-400 border-purple-500/30 bg-purple-500/10',
 }
 
-export default function QuestCard({ quest }: { quest: any }) {
+interface QuestCardProps {
+  quest: QuestData;
+}
+
+export default function QuestCard(props: QuestCardProps) {
+  const { quest } = props;
   const [isPending, startTransition] = useTransition()
   const [optimisticComplete, setOptimisticComplete] = useState(quest.isActuallyDone)
   const [showModal, setShowModal] = useState(false)
@@ -30,16 +36,19 @@ export default function QuestCard({ quest }: { quest: any }) {
   const isProtocol = !!quest.protocolSteps
   const isCourse = !!quest.courseSteps
   const isFood = quest.nodeTitle.toLowerCase().includes('nutrition') || quest.nodeTitle.toLowerCase().includes('food') || quest.nodeTitle.toLowerCase().includes('macro')
-  const isINT = quest.attribute === 'INT'
+  const isINT = quest.attribute === 'INT' // <-- FIXED: Restored isINT declaration
   const isDone = optimisticComplete || quest.isActuallyDone
 
-  const allProtocolStepsChecked = isProtocol ? quest.protocolSteps.every((_: any, i: number) => stepChecks[i]) : true
-  const protocolCheckedCount = isProtocol ? quest.protocolSteps.filter((_: any, i: number) => stepChecks[i]).length : 0
+  const allProtocolStepsChecked = isProtocol && quest.protocolSteps ? quest.protocolSteps.every((_: any, i: number) => stepChecks[i]) : true
+  const protocolCheckedCount = isProtocol && quest.protocolSteps ? quest.protocolSteps.filter((_: any, i: number) => stepChecks[i]).length : 0
   
-  const allCourseStepsChecked = isCourse ? quest.courseSteps.every((_: any, i: number) => courseChecks[i]) : true
-  const courseCheckedCount = isCourse ? quest.courseSteps.filter((_: any, i: number) => courseChecks[i]).length : 0
+  const allCourseStepsChecked = isCourse && quest.courseSteps ? quest.courseSteps.every((_: any, i: number) => courseChecks[i]) : true
+  const courseCheckedCount = isCourse && quest.courseSteps ? quest.courseSteps.filter((_: any, i: number) => courseChecks[i]).length : 0
 
   const canComplete = !isPending && allProtocolStepsChecked
+
+  const dateInIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+  const todayStrIST = `${dateInIST.getFullYear()}-${String(dateInIST.getMonth() + 1).padStart(2, '0')}-${String(dateInIST.getDate()).padStart(2, '0')}`
 
   const openModal = () => {
     if (!isDone && !isPending) {
@@ -62,14 +71,22 @@ export default function QuestCard({ quest }: { quest: any }) {
     })
   }
 
+  const handleSwap = () => {
+    if (isPending) return
+    const tomorrowIST = new Date(dateInIST)
+    tomorrowIST.setDate(tomorrowIST.getDate() + 1)
+    const tomorrowStr = `${tomorrowIST.getFullYear()}-${String(tomorrowIST.getMonth() + 1).padStart(2, '0')}-${String(tomorrowIST.getDate()).padStart(2, '0')}`
+    
+    startTransition(async () => {
+      await postponeSubQuest(quest.nodeId, quest.questIndex, tomorrowStr)
+      setShowModal(false)
+    })
+  }
+
   const executeCompletion = () => {
     if (isDone || !canComplete) return
-    
     const isPartial = isCourse && !allCourseStepsChecked
-
-    if (!isPartial) {
-      setOptimisticComplete(true)
-    }
+    if (!isPartial) setOptimisticComplete(true)
     setShowModal(false)
     
     let metadata: any = { log: notes }
@@ -117,7 +134,7 @@ export default function QuestCard({ quest }: { quest: any }) {
               {quest.title}
             </h3>
             
-            {isProtocol && !isDone && (
+            {isProtocol && !isDone && quest.protocolSteps && (
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex-1 h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
                   <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(protocolCheckedCount / quest.protocolSteps.length) * 100}%` }} />
@@ -126,7 +143,7 @@ export default function QuestCard({ quest }: { quest: any }) {
               </div>
             )}
 
-            {isCourse && !isDone && (
+            {isCourse && !isDone && quest.courseSteps && (
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex-1 h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
                   <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(courseCheckedCount / quest.courseSteps.length) * 100}%` }} />
@@ -168,7 +185,7 @@ export default function QuestCard({ quest }: { quest: any }) {
                 </p>
               </div>
 
-              {isGym && (
+              {isGym && quest.exercises && (
                 <div className="space-y-3 mb-6">
                   <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider">Exercise Execution Log</h4>
                   {quest.exercises.map((ex: string, i: number) => (
@@ -183,7 +200,7 @@ export default function QuestCard({ quest }: { quest: any }) {
                 </div>
               )}
 
-              {isProtocol && (
+              {isProtocol && quest.protocolSteps && (
                 <div className="space-y-3 mb-6">
                   <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider flex items-center gap-1.5">
                     <CheckSquare className="w-3 h-3" /> Protocol Checklist
@@ -200,7 +217,7 @@ export default function QuestCard({ quest }: { quest: any }) {
                 </div>
               )}
 
-              {isCourse && (
+              {isCourse && quest.courseSteps && (
                 <div className="space-y-3 mb-6">
                   <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider flex items-center gap-1.5">
                     <CheckSquare className="w-3 h-3" /> Syllabus Topics
@@ -237,7 +254,7 @@ export default function QuestCard({ quest }: { quest: any }) {
                   type="date" 
                   value={postponeDate}
                   onChange={(e) => setPostponeDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]} 
+                  min={todayStrIST} 
                   className="bg-neutral-900 border border-neutral-800 text-neutral-300 text-xs rounded-lg px-2 py-2 focus:border-neutral-600 outline-none w-full md:w-auto"
                 />
                 <button 
@@ -247,9 +264,17 @@ export default function QuestCard({ quest }: { quest: any }) {
                 >
                   <CalendarClock className="w-3.5 h-3.5" /> Postpone
                 </button>
+                <button 
+                  onClick={handleSwap}
+                  disabled={isPending}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-blue-400 bg-blue-900/10 border border-blue-900/30 rounded-lg hover:text-blue-300 hover:bg-blue-900/30 hover:border-blue-700/50 transition-colors"
+                  title="Swap for another quest in this branch"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Swap
+                </button>
               </div>
 
-              <div className="flex justify-end gap-3 w-full md:w-auto">
+              <div className="flex justify-end gap-3 w-full md:w-auto mt-3 md:mt-0">
                 <button onClick={() => setShowModal(false)} className="px-4 py-2 text-xs md:text-sm font-bold text-neutral-400 hover:text-white transition-colors">
                   Cancel
                 </button>

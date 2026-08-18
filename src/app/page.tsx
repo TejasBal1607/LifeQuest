@@ -4,7 +4,6 @@ import Link from 'next/link'
 import QuestCard from '@/components/QuestCard'
 import LedgerManager from '@/components/LedgerManager'
 
-// We EXPORT this type so QuestCard can use it
 export type QuestData = {
   id: string; nodeId: string; questIndex: number; nodeTitle: string; title: string;
   nodeDescription: string; attribute: string; nodeReward: number; dailyReward: number;
@@ -21,13 +20,13 @@ export default async function CommandCenter() {
     supabase.from('tree_nodes').select('*, skill_trees(attribute)').in('status', ['in_progress', 'completed'])
   ])
   
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const dayOfWeek = today.getDay()
-  const dayOfMonth = today.getDate()
+  // STRICT TIMEZONE ENFORCEMENT (Asia/Kolkata)
+  const dateInIST = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}))
+  const todayStr = `${dateInIST.getFullYear()}-${String(dateInIST.getMonth() + 1).padStart(2, '0')}-${String(dateInIST.getDate()).padStart(2, '0')}`
+  const dayOfWeek = dateInIST.getDay()
+  const dayOfMonth = dateInIST.getDate()
   const currentDayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]
 
-  // STEP 1: Map raw data
   const rawQuests = (allFetchedNodes || []).map(node => {
     let schema = typeof node.dynamic_schema === 'string' ? JSON.parse(node.dynamic_schema) : node.dynamic_schema
     const subQuests = Array.isArray(schema?.sub_quests) ? schema.sub_quests : []
@@ -36,7 +35,14 @@ export default async function CommandCenter() {
     const isGym = node.title.toLowerCase().includes('push') || node.title.toLowerCase().includes('pull') || node.title.toLowerCase().includes('legs') || node.title.toLowerCase().includes('arms') || node.title.toLowerCase().includes('body') || node.title.toLowerCase().includes('recovery')
     const isProtocol = node.title.toLowerCase().includes('protocol 1') || node.title.toLowerCase().includes('protocol 2')
     
-    const todayCompletedIndex = subQuests.findIndex((q: any) => q.completed && q.metadata?.loggedAt?.startsWith(todayStr))
+    // Check completion using IST converted dates
+    const todayCompletedIndex = subQuests.findIndex((q: any) => {
+      if (!q.completed || !q.metadata?.loggedAt) return false;
+      const loggedObj = new Date(q.metadata.loggedAt);
+      const loggedIST = new Date(loggedObj.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      const loggedStr = `${loggedIST.getFullYear()}-${String(loggedIST.getMonth() + 1).padStart(2, '0')}-${String(loggedIST.getDate()).padStart(2, '0')}`;
+      return loggedStr === todayStr;
+    })
     const doneToday = todayCompletedIndex !== -1
 
     if (node.status === 'completed' && !doneToday) return null
@@ -85,7 +91,6 @@ export default async function CommandCenter() {
     } as QuestData
   })
 
-  // STEP 2: Filter nulls cleanly (Resolves the 'allQuests' TS Error)
   const allQuests: QuestData[] = rawQuests.filter((q): q is QuestData => q !== null)
 
   const missedQuests = allQuests.filter((q: QuestData) => !q.isActuallyDone && q.scheduledDate && q.scheduledDate < todayStr && q.postponedTo !== todayStr)
