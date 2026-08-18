@@ -54,7 +54,7 @@ export default async function HistoryPage() {
         status: 'completed',
         isGym: isGym,
         items: questsForDay.map(q => ({ name: q.title, data: q.metadata?.exerciseLogs?.[q.title] || null })),
-        logText: questsForDay.find(q => q.metadata?.log)?.metadata?.log || ''
+        logText: questsForDay.map(q => q.metadata?.log).filter(Boolean).join('\n\n---\n\n')
       })
     })
   })

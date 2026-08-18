@@ -153,9 +153,11 @@ export async function completeSubQuest(nodeId: string, questIndex: number, attri
   if (completeAll) {
     schema.sub_quests.forEach((q: any) => {
       q.completed = true
+      // Safely spread the metadata object to ensure AI text (log) and exerciseLogs are saved
       q.metadata = { ...(metadata || {}), loggedAt: timestamp }
     })
-    xpGained = dailyReward + (node.xp_reward || 0)
+    // FIX: Only award the daily recurring XP. Do not add the massive one-time node completion XP.
+    xpGained = dailyReward
   } else if (isPartial) {
     const prevChecked = schema.sub_quests[questIndex].metadata?.checkedSteps?.length || 0
     const newChecked = metadata?.checkedSteps?.length || 0
@@ -172,7 +174,8 @@ export async function completeSubQuest(nodeId: string, questIndex: number, attri
     schema.sub_quests[questIndex].metadata = { ...(metadata || {}), loggedAt: timestamp }
     
     const allDone = schema.sub_quests.every((q: any) => q.completed)
-    xpGained = dailyReward + (allDone ? (node.xp_reward || 0) : 0)
+    // Only give the node reward if it's a final completion and not a recurring node
+    xpGained = dailyReward + (allDone && !node.repeatable ? (node.xp_reward || 0) : 0)
   }
 
   const allDone = schema.sub_quests.every((q: any) => q.completed)

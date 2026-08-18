@@ -155,7 +155,16 @@ export default function QuestCard(props: QuestCardProps) {
     if (isCourse) metadata.checkedSteps = Object.keys(courseChecks).filter(k => courseChecks[Number(k)]).map(Number)
     
     startTransition(async () => {
-      await completeSubQuest(quest.nodeId, quest.questIndex, quest.attribute, quest.nodeReward, metadata, isGym || isProtocol, quest.dailyReward, isPartial)
+      await completeSubQuest(
+        quest.nodeId, 
+        quest.questIndex, 
+        quest.attribute, 
+        (isGym || isProtocol) ? 0 : quest.nodeReward, // <-- FIX: Prevents 300 XP spam on daily recurring tasks
+        metadata, 
+        isGym || isProtocol, 
+        quest.dailyReward, 
+        isPartial
+      )
     })
   }
 
