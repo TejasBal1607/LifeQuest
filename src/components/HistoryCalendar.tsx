@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText, ChevronDown } from 'lucide-react'
 
 const attrStyles: Record<string, string> = {
   INT: 'text-blue-400 border-blue-500/30 bg-blue-500/10',
@@ -119,10 +119,16 @@ export default function HistoryCalendar({ historyData }: { historyData: any[] })
                   )}
 
                   {q.logText && (
-                    <div className="flex items-start gap-2 bg-neutral-900/50 p-3 rounded-lg border border-neutral-800 mt-3">
-                      <FileText className="w-3 h-3 mt-0.5 text-neutral-500 shrink-0" />
-                      <p className="text-xs text-neutral-400 italic whitespace-pre-wrap leading-relaxed">{q.logText}</p>
-                    </div>
+                    <details className="mt-3 group">
+                      <summary className="flex items-center gap-2 cursor-pointer bg-neutral-900/80 p-3 rounded-lg border border-neutral-800 hover:bg-neutral-800 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                        <FileText className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="text-xs font-semibold text-neutral-300">View AI Analysis & Logs</span>
+                        <ChevronDown className="w-4 h-4 text-neutral-500 ml-auto group-open:rotate-180 transition-transform" />
+                      </summary>
+                      <div className="p-3 mt-1.5 bg-neutral-950 rounded-lg border border-neutral-800/80 shadow-inner">
+                        <p className="text-xs text-neutral-400 whitespace-pre-wrap leading-relaxed">{q.logText}</p>
+                      </div>
+                    </details>
                   )}
                 </div>
               ))}
