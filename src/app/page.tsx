@@ -66,10 +66,6 @@ export default async function CommandCenter() {
 
     let activeIndex = doneToday ? todayCompletedIndex : subQuests.findIndex((q: any) => !q.completed)
     
-    // FIX 2: Grouped repeatables (Gym & Protocols) NEVER cycle. Force them to index 0 if not done today.
-    if (!doneToday && (isGym || isProtocol)) {
-        activeIndex = 0;
-    }
 
     if (activeIndex === -1) return null
 
