@@ -35,18 +35,25 @@ export default function QuestCard(props: QuestCardProps) {
 
   const [postponeDate, setPostponeDate] = useState('')
 
-  const isGym = !!quest.exercises
-  const isProtocol = !!quest.protocolSteps
-  const isCourse = !!quest.courseSteps
-const searchString = (quest.nodeTitle + ' ' + quest.title).toLowerCase()
-const isFood = searchString.includes('nutrition') || searchString.includes('food') || searchString.includes('macro')
+  // NEW DYNAMIC CATEGORIZATION
+  const searchString = (quest.nodeTitle + ' ' + quest.title).toLowerCase()
   
-  const isMorningProtocol = isProtocol && (quest.nodeTitle.toLowerCase().includes('protocol 1') || quest.title.toLowerCase().includes('protocol 1'))
+  const isGym = !!quest.exercises
+  const isCourse = !!quest.courseSteps
+  const isFood = searchString.includes('nutrition') || searchString.includes('food') || searchString.includes('macro')
+  const isProtocol = searchString.includes('protocol') || searchString.includes('discipline')
+  const isMorningProtocol = isProtocol && searchString.includes('protocol 1')
+  
+  // STRICT REPEATABLE DEFINITION
+  const isRepeatable = quest.attribute === 'STR' || searchString.includes('spanish') || searchString.includes('duolingo')
+
   const isINT = quest.attribute === 'INT'
   const isDone = optimisticComplete || quest.isActuallyDone
 
-  const allProtocolStepsChecked = isProtocol && quest.protocolSteps ? quest.protocolSteps.every((_: any, i: number) => stepChecks[i]) : true
-  const protocolCheckedCount = isProtocol && quest.protocolSteps ? quest.protocolSteps.filter((_: any, i: number) => stepChecks[i]).length : 0
+  // Fix: Only require checkmarks if the protocol actually has a checklist array
+  const hasProtocolChecklist = isProtocol && quest.protocolSteps && quest.protocolSteps.length > 0
+  const allProtocolStepsChecked = hasProtocolChecklist ? quest.protocolSteps!.every((_: any, i: number) => stepChecks[i]) : true
+  const protocolCheckedCount = hasProtocolChecklist ? quest.protocolSteps!.filter((_: any, i: number) => stepChecks[i]).length : 0
   
   const allCourseStepsChecked = isCourse && quest.courseSteps ? quest.courseSteps.every((_: any, i: number) => courseChecks[i]) : true
   const courseCheckedCount = isCourse && quest.courseSteps ? quest.courseSteps.filter((_: any, i: number) => courseChecks[i]).length : 0
@@ -97,13 +104,11 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
     reader.onload = (event) => {
       const img = new Image()
       img.onload = () => {
-        // Create a canvas to resize the image
         const canvas = document.createElement('canvas')
         let width = img.width
         let height = img.height
-        const MAX_DIMENSION = 800 // Shrink to max 800px
+        const MAX_DIMENSION = 800
 
-        // Calculate new dimensions while maintaining aspect ratio
         if (width > height && width > MAX_DIMENSION) {
           height *= MAX_DIMENSION / width
           width = MAX_DIMENSION
@@ -117,7 +122,6 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
         const ctx = canvas.getContext('2d')
         ctx?.drawImage(img, 0, 0, width, height)
         
-        // Compress to JPEG at 70% quality (Results in ~50kb to 100kb file)
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7)
         setImageFile(compressedBase64)
       }
@@ -160,9 +164,9 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
         quest.nodeId, 
         quest.questIndex, 
         quest.attribute, 
-        (isGym || isProtocol || isFood) ? 0 : quest.nodeReward, 
+        isRepeatable ? 0 : quest.nodeReward, // Prevent XP spam on repeatables
         metadata, 
-        isGym || isProtocol, 
+        isRepeatable, // TELL BACKEND NOT TO LOCK OUT THE NODE
         quest.dailyReward, 
         isPartial
       )
@@ -170,7 +174,7 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
   }
 
   const isPartialState = isCourse && !allCourseStepsChecked
-  const buttonText = isProtocol && !allProtocolStepsChecked ? 'Check all steps to finish' : isPartialState ? 'Save Progress' : 'Log & Complete'
+  const buttonText = (hasProtocolChecklist && !allProtocolStepsChecked) ? 'Check all steps to finish' : isPartialState ? 'Save Progress' : 'Log & Complete'
 
   return (
     <>
@@ -205,12 +209,13 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
               {quest.title}
             </h3>
             
-            {isProtocol && !isDone && quest.protocolSteps && (
+            {/* ONLY show progress bar if it genuinely has steps */}
+            {hasProtocolChecklist && !isDone && (
               <div className="mt-3 flex items-center gap-3">
                 <div className="flex-1 h-1.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800">
-                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(protocolCheckedCount / quest.protocolSteps.length) * 100}%` }} />
+                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(protocolCheckedCount / quest.protocolSteps!.length) * 100}%` }} />
                 </div>
-                <span className="text-[10px] text-neutral-500 font-mono font-bold">{protocolCheckedCount}/{quest.protocolSteps.length}</span>
+                <span className="text-[10px] text-neutral-500 font-mono font-bold">{protocolCheckedCount}/{quest.protocolSteps!.length}</span>
               </div>
             )}
 
@@ -225,7 +230,7 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
           </div>
           
           <div className="shrink-0 text-right">
-            <div className="text-[10px] md:text-xs font-bold text-emerald-500">+{(isGym || isProtocol || isCourse) ? 'Multi' : quest.dailyReward} XP</div>
+            <div className="text-[10px] md:text-xs font-bold text-emerald-500">+{(isGym || hasProtocolChecklist || isCourse) ? 'Multi' : quest.dailyReward} XP</div>
           </div>
         </div>
       </div>
@@ -271,12 +276,12 @@ const isFood = searchString.includes('nutrition') || searchString.includes('food
                 </div>
               )}
 
-              {isProtocol && quest.protocolSteps && (
+              {hasProtocolChecklist && (
                 <div className="space-y-3 mb-6">
                   <h4 className="text-[10px] font-bold uppercase text-neutral-500 mb-2 tracking-wider flex items-center gap-1.5">
                     <CheckSquare className="w-3 h-3" /> Protocol Checklist
                   </h4>
-                  {quest.protocolSteps.map((step: string, i: number) => (
+                  {quest.protocolSteps!.map((step: string, i: number) => (
                     <label key={i} className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${stepChecks[i] ? 'bg-emerald-950/20 border-emerald-900/50' : 'bg-neutral-950 border-neutral-800 hover:border-neutral-700'}`}>
                       <div className="mt-0.5 relative flex items-center justify-center shrink-0">
                         <input type="checkbox" checked={!!stepChecks[i]} onChange={(e) => setStepChecks(prev => ({...prev, [i]: e.target.checked}))} className="appearance-none w-5 h-5 border-2 border-neutral-700 rounded bg-neutral-900 checked:bg-emerald-500 checked:border-emerald-500 transition-colors peer" />

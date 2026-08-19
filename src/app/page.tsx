@@ -32,19 +32,9 @@ export default async function CommandCenter() {
     if (subQuests.length === 0) return null
 
     const isGym = node.title.toLowerCase().includes('push') || node.title.toLowerCase().includes('pull') || node.title.toLowerCase().includes('legs') || node.title.toLowerCase().includes('arms') || node.title.toLowerCase().includes('body') || node.title.toLowerCase().includes('recovery')
-    const isProtocol = node.title.toLowerCase().includes('protocol 1') || node.title.toLowerCase().includes('protocol 2')
+    const isProtocol = node.title.toLowerCase().includes('protocol') || node.title.toLowerCase().includes('discipline')
+    const isSpanish = node.title.toLowerCase().includes('spanish') || node.title.toLowerCase().includes('duolingo')
     
-    const todayCompletedIndex = subQuests.findIndex((q: any) => {
-      if (!q.completed || !q.metadata?.loggedAt) return false;
-      const loggedObj = new Date(q.metadata.loggedAt);
-      const loggedIST = new Date(loggedObj.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-      const loggedStr = `${loggedIST.getFullYear()}-${String(loggedIST.getMonth() + 1).padStart(2, '0')}-${String(loggedIST.getDate()).padStart(2, '0')}`;
-      return loggedStr === todayStr;
-    })
-    const doneToday = todayCompletedIndex !== -1
-
-    if (node.status === 'completed' && !doneToday) return null
-
     const attr = node.skill_trees?.attribute || 'INT'
     
     let calculatedReward = 50
@@ -53,21 +43,53 @@ export default async function CommandCenter() {
       else if (node.title.toLowerCase().includes('nutrition') || node.title.toLowerCase().includes('macro')) calculatedReward = 25
       else if (isGym) calculatedReward = 120
     } else if (attr === 'DEX') {
-      if (node.title.toLowerCase().includes('spanish')) calculatedReward = 30
+      if (isSpanish) calculatedReward = 30
       else if (node.title.toLowerCase().includes('literary') || node.title.toLowerCase().includes('reading')) calculatedReward = 50
       else calculatedReward = 80
     } else calculatedReward = 100
 
-    const activeIndex = doneToday ? todayCompletedIndex : subQuests.findIndex((q: any) => !q.completed)
+    const checkDoneToday = (q: any) => {
+      if (!q.metadata?.loggedAt) return false;
+      const loggedObj = new Date(q.metadata.loggedAt);
+      const loggedIST = new Date(loggedObj.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      const loggedStr = `${loggedIST.getFullYear()}-${String(loggedIST.getMonth() + 1).padStart(2, '0')}-${String(loggedIST.getDate()).padStart(2, '0')}`;
+      return loggedStr === todayStr;
+    }
+
+    const todayCompletedIndex = subQuests.findIndex(checkDoneToday)
+    const doneToday = todayCompletedIndex !== -1
+
+    const isStrictLinear = !isGym && !isProtocol && !isSpanish
+
+    // FIX 1: Never hide repeatable quests just because the parent node hit 100% "completed" status in the DB
+    if (node.status === 'completed' && !doneToday && isStrictLinear) return null
+
+    let activeIndex = doneToday ? todayCompletedIndex : subQuests.findIndex((q: any) => !q.completed)
+    
+    // FIX 2: Grouped repeatables (Gym & Protocols) NEVER cycle. Force them to index 0 if not done today.
+    if (!doneToday && (isGym || isProtocol)) {
+        activeIndex = 0;
+    }
+
     if (activeIndex === -1) return null
 
-    // Removed the early filter here so nodes can reserve their slots!
+    // STRICT vs LOOSE SCHEDULING LOGIC
+    if (isStrictLinear || isGym || isProtocol) {
+      if (!doneToday && subQuests[activeIndex].metadata?.scheduledDate && subQuests[activeIndex].metadata.scheduledDate > todayStr) {
+        return null
+      }
+    } else if (isSpanish) {
+      if (!doneToday) {
+        activeIndex = subQuests.findIndex((q: any) => !q.completed && (!q.metadata?.scheduledDate || q.metadata.scheduledDate <= todayStr))
+        if (activeIndex === -1) return null
+      }
+    }
 
     const metadata = subQuests[activeIndex].metadata || {}
     let displayTitle = subQuests[activeIndex].title
     let parsedSteps = undefined
 
-    if (!isGym && !isProtocol && (attr === 'INT' || attr === 'CHA' || (attr === 'DEX' && !node.title.toLowerCase().includes('spanish')))) {
+    if (isStrictLinear || isSpanish) {
       const sepMatch = displayTitle.match(/(?:—| - |:\s+)/)
       if (sepMatch) {
         const parts = displayTitle.split(sepMatch[0])
@@ -80,12 +102,13 @@ export default async function CommandCenter() {
 
     return {
       id: `${node.id}-${activeIndex}`, nodeId: node.id, questIndex: activeIndex,
-      nodeTitle: node.skill_trees?.title || node.title, title: isGym || isProtocol ? node.title : displayTitle,
+      nodeTitle: node.skill_trees?.title || node.title, 
+      title: (isGym || isProtocol) ? node.title : displayTitle,
       nodeDescription: node.description || 'No module briefing provided.',
       attribute: attr, nodeReward: node.xp_reward || 0, dailyReward: calculatedReward,
       isActuallyDone: doneToday,
       exercises: isGym ? subQuests.map((q: any) => q.title) : undefined,
-      protocolSteps: isProtocol ? subQuests.map((q: any) => q.title) : undefined,
+      protocolSteps: isProtocol ? subQuests.map((q: any) => q.title) : undefined, 
       courseSteps: parsedSteps, savedCheckedSteps: metadata.checkedSteps || [],
       scheduledDate: metadata.scheduledDate, postponedTo: metadata.postponedTo, isRollover: metadata.isRollover
     } as QuestData
@@ -98,7 +121,6 @@ export default async function CommandCenter() {
 
   const hasTitle = (q: QuestData, titles: string[]) => titles.some(t => (q.nodeTitle + ' ' + q.title).toLowerCase().includes(t.toLowerCase()))
 
-  // Now we use `allQuests` to claim slots so a postponed quest blocks other quests from replacing it
   const scheduledQuests: QuestData[] = []
   scheduledQuests.push(...allQuests.filter((q: QuestData) => q.attribute === 'INT' && hasTitle(q, ['foundation', 'object-oriented', 'data structure', 'operating system'])).slice(0, 2))
   scheduledQuests.push(...allQuests.filter((q: QuestData) => hasTitle(q, ['spanish'])).slice(0, 1))
@@ -111,7 +133,6 @@ export default async function CommandCenter() {
   const deduplicatedScheduled = scheduledQuests.filter((sq: QuestData) => !forceQuests.some((fq: QuestData) => fq.nodeId === sq.nodeId))
   const remainingSlots = Math.max(0, 10 - forceQuests.length)
   
-  // FIX: Here is where we finally hide the quests that were postponed to the future
   const finalQuests = [...forceQuests, ...deduplicatedScheduled.slice(0, remainingSlots)]
     .filter((q: QuestData) => !q.scheduledDate || q.scheduledDate <= todayStr) 
     .sort((a, b) => Number(a.isActuallyDone) - Number(b.isActuallyDone))
